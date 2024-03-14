@@ -18,6 +18,8 @@ const uploadOnCloudinary = async (localFilePath) => {
         })
         //file has been uploaded successfully
         console.log("FILE IS UPLOADED ON CLOUDINARY", response.url)
+        console.log(response)
+        fs.unlinkSync(localFilePath);
         return response;
     } catch (error) {
         fs.unlinkSync(localFilePath); //delete local image after uploading it to clodinary
