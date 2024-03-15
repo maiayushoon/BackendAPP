@@ -5,6 +5,7 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { apiResponse } from "../utils/apiResponse.js";
 import jwt from "jsonwebtoken";
 
+
 const generateAccessTokenAndRefreshToken = async (userId) => {
   try {
     const user = await User.findById(userId);
@@ -289,8 +290,186 @@ const updateUserCoverImg = asyncHandler(async (req, res) => {
     .json(new apiResponse(200, user, "CoverImage is updated successfully"));
 });
 
+const deleteUserAvatarImage = asyncHandler(async (req, res) => {
+  const avatarImageToBeDeleted = req.file?.path;
+  // Check if image url exists in the database
+  if (!avatarImageToBeDeleted) {
+    throw new apiError(400, "No Avatar Image to be deleted");
+  }
+  try {
+    // await cloudinary.uploader.destroy(avatarImageToBeDeleted.split(".com/")[1]);
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        avatar: null,
+      },
+      {
+        new: true,
+      }
+    ).select("-password");
+    return res
+      .status(200)
+      .json(
+        new apiResponse(
+          200,
+          user,
+          "User's Avatar has been deleted Successfully"
+        )
+      );
+  } catch (err) {
+    console.log(err);
+    throw new apiError(500, "Server Error: Could not delete Avatar Image");
+  }
+});
 
+const deleteUserCoverImage = asyncHandler(async (req, res) => {
+  const coverImageToBeDeleted = req.file?.path;
+  // Check if image url exists in the database
+  if (!coverImageToBeDeleted) {
+    throw new apiError(400, "No Avatar Image to be deleted");
+  }
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        coverImage: null,
+      },
+      {
+        new: true,
+      }
+    ).select("-password");
+    return res
+      .status(200)
+      .json(
+        new apiResponse(
+          200,
+          user,
+          "User's CoverImage has been deleted Successfully"
+        )
+      );
+  } catch (err) {
+    console.log(err);
+    throw new apiError(500, "Server Error: Could not delete Cover Image");
+  }
+});
 
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  const { username } = req.params; //taking username by url
+
+  if (!username?.trim()) {
+    //!username?.trim() will be true if username is null, undefined, or an empty string (after trimming whitespace), and false if username is a non-empty string.
+    throw new apiError(400, "Username is missing");
+  }
+
+  const channel = await User.aggregate([
+    {
+      $match: {
+        username: username?.toLowerCase(),
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "subscribers",
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscribedTo",
+      },
+    },
+    {
+      $addFields: {
+        subscribersCount: {
+          $size: "$subscribers",
+        },
+        channelsSubscribedToCount: {
+          $size: "$subscribedTo",
+        },
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        fullName: 1,
+        username: 1,
+        subscribersCount: 1,
+        channelsSubscribedToCount: 1,
+        isSubscribed: 1,
+        avatar: 1,
+        email: 1,
+        coverImage: 1,
+        createdAt: 1,
+      },
+    },
+  ]);
+
+  console.log(channel);
+
+  if (!channel?.length) {
+    //!channel?.length will be true if channel is null or undefined, or false if channel exists and has a length greater than zero.
+    throw new apiError(404, "Channel doesn't exists");
+  }
+
+  return res
+    .status(200)
+    .json(200, channel[0], "user channel is fetched successfully");
+});
+
+const getWatchHistory = asyncHandler(async (req, res) => {
+  const user = await User.aggregate([{
+    $match: {
+      _id: new mongoose.Types.ObjectId(res.user._id)
+    }
+  }, {
+    $lookup: {
+      from: "videos",
+      localField: "watchHistory",
+      foreignField: "_id",
+      as: "watchHistory",
+      pipeline: [
+        {
+          $lookup: {
+            from: "users",
+            localField: "owner",
+            foreignField: "_id",
+            as: "owner",
+            pipeline: [
+              {
+                "$project": {
+                  fullName: 1,
+                  username: 1,
+                  avatar: 1,
+                }
+              }
+            ]
+          }
+        },
+        {
+          $addFields: {
+            owner: {
+              $first: "$owner"
+            }
+          }
+        }
+      ]
+    }
+  }
+  ])
+
+  return res.status(200).json(new apiResponse(200, user[0].watchHistory, "Watch History Fetched successfully"))
+});
 
 
 export {
@@ -303,4 +482,8 @@ export {
   updateAccountDetails,
   updateUserAvatar,
   updateUserCoverImg,
+  deleteUserAvatarImage,
+  deleteUserCoverImage,
+  getUserChannelProfile,
+  getWatchHistory,
 };
