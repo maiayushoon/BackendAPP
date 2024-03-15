@@ -1,9 +1,8 @@
 import { mongoose, Schema } from "mongoose";
 import bcrypt from "bcrypt";
-// import { jwt } from "jsonwebtoken";
-import pkg from 'jsonwebtoken';
-const { jwt } = pkg;
-
+import  jwt  from "jsonwebtoken";
+// import pkg from 'jsonwebtoken';
+// const { jwt } = pkg;
 
 const userSchema = new Schema(
     {
@@ -65,7 +64,7 @@ userSchema.methods.isPasswordCorrect = async function (password) {
     return await bcrypt.compare(password, this.password);
 };
 
-userSchema.methods.generateAccessToken = function () {
+userSchema.methods.generateAccessToken = function () { //access token is short lived and is used to 
     return jwt.sign(
         {
             _id: this._id,
